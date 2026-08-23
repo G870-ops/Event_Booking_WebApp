@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+:root {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0b0f19; /* Sleek dark-mode first background */
+  color: #f1f5f9;
+}
+
+/* Custom Typography classes using Space Grotesk */
+.font-display {
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom ambient neon glow */
+.ambient-glow {
+  position: absolute;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.ambient-glow-cyan {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.04) 60%, rgba(0, 0, 0, 0) 100%);
+  filter: blur(35px);
+  pointer-events: none;
+}
+
+/* Glassmorphism panel styling */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-card-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card-hover:hover {
+  transform: translateY(-6px);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.25);
+}
+
+/* Smooth transition for category filtering animations */
+.transition-all-custom {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Futuristic 3D Card Flip styling */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Neon laser scanning line */
+@keyframes laser-scan {
+  0% {
+    top: 0%;
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.15;
+  }
+}
+.scanner-line {
+  animation: laser-scan 2.5s ease-in-out infinite;
+}
+
+/* Float typing chatbot dots */
+@keyframes float-dot {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.dot-float-1 {
+  animation: float-dot 1.2s infinite ease-in-out;
+}
+.dot-float-2 {
+  animation: float-dot 1.2s infinite ease-in-out 0.2s;
+}
+.dot-float-3 {
+  animation: float-dot 1.2s infinite ease-in-out 0.4s;
+}
+
+
