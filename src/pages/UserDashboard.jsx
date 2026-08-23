@@ -3,7 +3,6 @@ import { AuthContext } from '../context/AuthContext';
 import api from '../utils/axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaTicketAlt, FaTimesCircle, FaShieldAlt, FaCheckCircle } from 'react-icons/fa';
-import { QRCodeSVG } from 'qrcode.react';
 
 const UserDashboard = () => {
     const { user } = useContext(AuthContext);
