@@ -27,20 +27,63 @@ const Home = () => {
     const [bgImage, setBgImage] = useState('');
     const [showPanel, setShowPanel] = useState(false);
 
-    // Color Presets
+    // Expanded Color Presets array covering all event types & themes
     const colorPresets = [
-        { name: 'Cyber Dark', hex: '#0a0a0c' },
-        { name: 'Slate Gray', hex: '#0f172a' },
-        { name: 'Midnight Blue', hex: '#080d1a' },
-        { name: 'Deep Purple', hex: '#12091c' },
-        { name: 'Light Gray', hex: '#f3f4f6' },
+        // Tech & Cyber Events
+        { name: 'Cyber Dark (Tech/Hackathons)', hex: '#0a0a0c' },
+        { name: 'Electric Purple (AI/Future)', hex: '#581c87' },
+        { name: 'Neon Cyan (Developer/DevOps)', hex: '#0e7490' },
+
+        // Music, Festivals & Nightlife
+        { name: 'Neon Magenta (Music/DJ)', hex: '#be185d' },
+        { name: 'Club Violet (Concerts/Parties)', hex: '#6d28d9' },
+        { name: 'Sunset Amber (Festivals)', hex: '#b45309' },
+
+        // Business & Corporate Seminars
+        { name: 'Slate Gray (Corporate)', hex: '#0f172a' },
+        { name: 'Executive Navy (Summit/Conf)', hex: '#1e3a8a' },
+        { name: 'Steel Blue (Enterprise)', hex: '#334155' },
+
+        // Luxury, Weddings & Galas
+        { name: 'Emerald Gala (Formal/Meetups)', hex: '#064e3b' },
+        { name: 'Imperial Gold (Awards/VIP)', hex: '#713f12' },
+        { name: 'Royal Crimson (Red Carpet)', hex: '#881337' },
+
+        // Nature, Outdoor & Sports
+        { name: 'Forest Eco (Marathons/Outdoor)', hex: '#14532d' },
+        { name: 'Fresh Mint (Wellness/Yoga)', hex: '#047857' },
+
+        // Light & Clean Themes
+        { name: 'Clean Light (Day Workshops)', hex: '#f8fafc' },
+        { name: 'Soft Gray (Casual)', hex: '#e2e8f0' },
     ];
 
-    // Background Image Presets
+    // Expanded & Categorized Background Presets with Thumbnails
     const imagePresets = [
-        { name: 'None', url: '' },
-        { name: 'Cyber Grid', url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1920&q=80' },
-        { name: 'Abstract Neon', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1920&q=80' },
+        { name: 'None (Solid)', category: 'Default', url: '', thumb: '' },
+
+        // Tech & Coding
+        { name: 'Cyber Grid', category: 'Tech / Hackathon', url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=200&q=80' },
+        { name: 'Abstract Neon AI', category: 'Tech / AI', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=200&q=80' },
+
+        // Music & Nightlife
+        { name: 'EDM Stage Lights', category: 'Music / Concert', url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=200&q=80' },
+        { name: 'Club DJ Vibes', category: 'Party / DJ Night', url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=200&q=80' },
+
+        // Gaming & Esports
+        { name: 'Esports Arena', category: 'Gaming', url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=200&q=80' },
+
+        // Business & Corporate
+        { name: 'Executive Summit', category: 'Corporate', url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=200&q=80' },
+
+        // Luxury, Galas & Formal
+        { name: 'Red Carpet Gala', category: 'Luxury / Awards', url: 'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1519671482749-fd09be7ccebf?auto=format&fit=crop&w=200&q=80' },
+
+        // Outdoor & Festivals
+        { name: 'Sunset Carnival', category: 'Festival / Culture', url: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=200&q=80' },
+
+        // Sports & Fitness
+        { name: 'Stadium Floodlights', category: 'Sports', url: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1920&q=80', thumb: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=200&q=80' }
     ];
 
     useEffect(() => {
@@ -141,14 +184,20 @@ const Home = () => {
                     </h3>
 
                     {/* Color Presets */}
-                    <div className="mb-4">
-                        <label className="text-xs font-semibold text-slate-400 block mb-2">Preset Colors</label>
-                        <div className="flex gap-2 flex-wrap">
+                    <div className="mb-5">
+                        <label className="text-xs font-semibold text-slate-400 block mb-2">
+                            Theme Colors by Event Type
+                        </label>
+                        <div className="grid grid-cols-5 gap-2 max-h-48 overflow-y-auto pr-1">
                             {colorPresets.map((preset) => (
                                 <button
                                     key={preset.hex}
-                                    onClick={() => { setBgColor(preset.hex); setBgImage(''); }}
-                                    className="w-8 h-8 rounded-full border border-slate-600 shadow-sm transition-transform hover:scale-110"
+                                    onClick={() => {
+                                        setBgColor(preset.hex);
+                                        setBgImage('');
+                                    }}
+                                    className={`w-9 h-9 rounded-full border border-slate-600/80 shadow-md transition-all hover:scale-110 hover:border-white focus:outline-none ${bgColor === preset.hex ? 'ring-2 ring-indigo-500 scale-110 border-white' : ''
+                                        }`}
                                     style={{ backgroundColor: preset.hex }}
                                     title={preset.name}
                                 />
@@ -159,39 +208,74 @@ const Home = () => {
                     {/* Custom Color Picker */}
                     <div className="mb-4">
                         <label className="text-xs font-semibold text-slate-400 block mb-2">Custom Color Picker</label>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 bg-slate-800/60 p-2 rounded-xl border border-slate-700/60">
                             <input
                                 type="color"
                                 value={bgColor}
                                 onChange={(e) => setBgColor(e.target.value)}
-                                className="w-10 h-10 rounded cursor-pointer bg-transparent border-none"
+                                className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
                             />
-                            <span className="text-sm font-mono">{bgColor}</span>
+                            <span className="text-xs font-mono text-slate-300 uppercase">{bgColor}</span>
                         </div>
                     </div>
 
-                    {/* Background Image Options */}
+                    {/* Enhanced Background Image Selector */}
                     <div className="mb-4">
-                        <label className="text-xs font-semibold text-slate-400 block mb-2">Background Image</label>
-                        <div className="flex gap-2 mb-2">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="text-xs font-semibold text-slate-400">Background Image Theme</label>
+                            {bgImage && (
+                                <button
+                                    onClick={() => setBgImage('')}
+                                    className="text-[10px] text-rose-400 hover:underline"
+                                >
+                                    Clear Image
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Scrollable Visual Thumbnail Selector */}
+                        <div className="grid grid-cols-2 gap-2.5 max-h-56 overflow-y-auto pr-1 mb-3">
                             {imagePresets.map((img) => (
                                 <button
                                     key={img.name}
                                     onClick={() => setBgImage(img.url)}
-                                    className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700"
+                                    className={`relative group h-20 rounded-xl overflow-hidden border text-left transition-all ${bgImage === img.url
+                                            ? 'ring-2 ring-indigo-500 border-white scale-[0.98]'
+                                            : 'border-slate-700/80 hover:border-slate-500'
+                                        }`}
                                 >
-                                    {img.name}
+                                    {img.url ? (
+                                        <img
+                                            src={img.thumb || img.url}
+                                            alt={img.name}
+                                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 bg-slate-800 flex items-center justify-center text-xs text-slate-500 font-mono">
+                                            Solid Color
+                                        </div>
+                                    )}
+
+                                    {/* Gradient Overlay & Labels */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent p-2 flex flex-col justify-end">
+                                        <span className="text-[9px] font-bold uppercase tracking-wider text-indigo-400 line-clamp-1">
+                                            {img.category}
+                                        </span>
+                                        <span className="text-xs font-semibold text-white truncate">
+                                            {img.name}
+                                        </span>
+                                    </div>
                                 </button>
                             ))}
                         </div>
 
-                        {/* Custom Image URL Input */}
+                        {/* Custom URL Input */}
                         <input
                             type="text"
-                            placeholder="Paste Image URL..."
+                            placeholder="Or paste custom Image URL..."
                             value={bgImage}
                             onChange={(e) => setBgImage(e.target.value)}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                            className="w-full bg-slate-800/90 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors"
                         />
                     </div>
                 </div>

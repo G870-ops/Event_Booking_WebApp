@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import api from '../utils/axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaTicketAlt, FaTimesCircle } from 'react-icons/fa';
+import { FaTicketAlt, FaTimesCircle, FaShieldAlt, FaCheckCircle } from 'react-icons/fa';
+import { QRCodeSVG } from 'qrcode.react';
 
 const UserDashboard = () => {
     const { user } = useContext(AuthContext);
@@ -11,14 +12,8 @@ const UserDashboard = () => {
     const [loading, setLoading] = useState(true);
 
     const colors = [
-        '#f3f4f6', // Premium Light gray
-        '#ecfdf5', // Premium Soft emerald
-        '#eff6ff', // Premium Soft blue
-        '#fdf2f8', // Premium Soft pink
-        '#faf5ff', // Premium Soft purple
-        '#fff7ed', // Premium Soft orange
-        '#f0fdfa', // Premium Soft teal
-        '#fefaf0'  // Premium Soft warm amber
+        '#f3f4f6', '#ecfdf5', '#eff6ff', '#fdf2f8',
+        '#faf5ff', '#fff7ed', '#f0fdfa', '#fefaf0'
     ];
 
     const [bgColorIndex, setBgColorIndex] = useState(0);
@@ -65,25 +60,38 @@ const UserDashboard = () => {
     if (loading) return <div className="text-center py-20 text-xl font-semibold">Loading dashboard...</div>;
 
     return (
-        <div 
+        <div
             className="max-w-6xl mx-auto rounded-3xl p-6 sm:p-8 transition-colors duration-1000"
             style={{ backgroundColor: currentBgColor }}
         >
-            <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8 border border-gray-100 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-6">
-                <div className="w-20 h-20 bg-gray-200 text-gray-900 rounded-full flex items-center justify-center text-3xl font-bold uppercase tracking-widest shrink-0">
-                    {user?.name.charAt(0)}
+            {/* User Profile Banner */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 sm:p-8 mb-8 border border-gray-100 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left justify-between gap-4 sm:gap-6">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+                    <div className="w-20 h-20 bg-gray-200 text-gray-900 rounded-full flex items-center justify-center text-3xl font-bold uppercase tracking-widest shrink-0">
+                        {user?.name.charAt(0)}
+                    </div>
+                    <div className="flex flex-col items-center sm:items-start">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">Welcome, {user?.name}!</h1>
+                        <p className="text-gray-500 flex items-center justify-center sm:justify-start gap-2 text-sm font-medium">
+                            <span className="w-2 h-2 rounded-full bg-green-500"></span> User Dashboard ({user?.role || 'user'})
+                        </p>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center sm:items-start">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">Welcome, {user?.name}!</h1>
-                    <p className="text-gray-500 flex items-center justify-center sm:justify-start gap-2">
-                        <span className="w-2 h-2 rounded-full bg-green-500"></span> User Dashboard
-                    </p>
-                </div>
+
+                {/* Admin/Staff Navigation Switcher */}
+                {['superadmin', 'admin', 'event_manager', 'gate_checker', 'finance'].includes(user?.role) && (
+                    <Link
+                        to="/admin"
+                        className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-3 rounded-xl shadow-md transition shrink-0"
+                    >
+                        <FaShieldAlt /> Open Telemetry Admin
+                    </Link>
+                )}
             </div>
 
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 sm:gap-3">
-                    <FaTicketAlt className="text-gray-700" /> My Bookings requests
+                    <FaTicketAlt className="text-gray-700" /> My Booking Requests
                 </h2>
             </div>
 
@@ -116,16 +124,43 @@ const UserDashboard = () => {
                                                 {booking.status !== 'cancelled' && (
                                                     <span className={`px-2 py-1 text-[10px] font-black rounded uppercase tracking-wider ${booking.paymentStatus === 'paid' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
                                                         }`}>
-                                                        {booking.paymentStatus.replace('_', ' ')}
+                                                        {booking.paymentStatus?.replace('_', ' ')}
+                                                    </span>
+                                                )}
+
+                                                {/* Gate Verification Live Status */}
+                                                {booking.checkedIn ? (
+                                                    <span className="px-2 py-1 text-[10px] font-black rounded uppercase tracking-wider bg-purple-100 text-purple-700 flex items-center gap-1">
+                                                        <FaCheckCircle /> Redeemed
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-2 py-1 text-[10px] font-black rounded uppercase tracking-wider bg-amber-50 text-amber-600 border border-amber-200">
+                                                        Gate Pass Active
                                                     </span>
                                                 )}
                                             </div>
                                         </div>
+
                                         <div className="text-sm text-gray-500 mb-4 space-y-1">
                                             <p><strong className="text-gray-700">Date:</strong> {new Date(booking.inviteId.date).toLocaleDateString()}</p>
                                             <p><strong className="text-gray-700">Amount:</strong> {booking.amount === 0 ? 'Free' : `₹${booking.amount}`}</p>
                                             <p><strong className="text-gray-700">Requested:</strong> {new Date(booking.createdAt).toLocaleDateString()}</p>
                                         </div>
+
+                                        {/* Dynamic Scannable QR Code */}
+                                        {booking.status === 'confirmed' && (
+                                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-2 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gate Pass ID</p>
+                                                    <p className="text-xs font-mono font-bold text-gray-800 select-all">{booking._id}</p>
+                                                </div>
+                                                <img
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=54x54&data=${booking._id}`}
+                                                    alt="Gate Pass QR"
+                                                    className="w-[54px] h-[54px] rounded"
+                                                />
+                                            </div>
+                                        )}
                                     </>
                                 ) : (
                                     <p className="text-red-500 italic">Invite details unavailable (might have been deleted)</p>
