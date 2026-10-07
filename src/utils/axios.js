@@ -1,11 +1,13 @@
 import axios from "axios";
 
-const API_HOST = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== "")
-  ? import.meta.env.VITE_API_URL
+const rawHost = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== "")
+  ? import.meta.env.VITE_API_URL.trim()
   : (import.meta.env.MODE === 'development' ? "http://localhost:5000" : "");
 
+const API_HOST = rawHost.replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: `${API_HOST}/api`,
+  baseURL: API_HOST ? `${API_HOST}/api` : "/api",
   headers: {
     "Content-Type": "application/json",
   },

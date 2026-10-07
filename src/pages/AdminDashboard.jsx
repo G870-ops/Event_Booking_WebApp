@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fa';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Html5QrcodeScanner } from 'html5-qrcode';
+import { generateTicketPDF } from '../utils/generateTicketPDF';
 
 const AdminDashboard = () => {
     const { user } = useContext(AuthContext);
@@ -463,7 +464,8 @@ const AdminDashboard = () => {
                                         <tr>
                                             <th className="p-4">Entity</th>
                                             <th className="p-4">Target Node</th>
-                                            <th className="p-4">Status</th>
+                                            <th className="p-4">Payment Channel</th>
+                                            <th className="p-4">Status & Gate</th>
                                             <th className="p-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
@@ -479,15 +481,55 @@ const AdminDashboard = () => {
                                                     <div className="text-xs font-mono text-slate-500">₹{b.amount}</div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <span className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${b.status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                                        }`}>{b.status}</span>
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-mono text-xs font-bold uppercase text-slate-300">
+                                                            {b.paymentMethod || 'FREE'}
+                                                        </span>
+                                                        <span className="text-[10px] font-mono text-slate-500 truncate max-w-[120px]">
+                                                            {b.paymentReference || 'N/A'}
+                                                        </span>
+                                                        <span className={`text-[9px] font-mono uppercase font-bold ${
+                                                            b.paymentStatus === 'paid' ? 'text-emerald-400' : 'text-amber-400'
+                                                        }`}>
+                                                            {b.paymentStatus || 'UNPAID'}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider ${
+                                                            b.status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                                        }`}>
+                                                            {b.status}
+                                                        </span>
+                                                        {b.checkedIn ? (
+                                                            <span className="text-[9px] font-mono text-purple-400 font-bold">
+                                                                Redeemed
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] font-mono text-emerald-400">
+                                                                Gate Pass Active
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-4 text-right">
-                                                    {b.status === 'pending' && (
-                                                        <button onClick={() => handleConfirmBooking(b._id, 'paid')} className="text-emerald-400 hover:text-emerald-300 font-mono text-xs bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition">
-                                                            Authorize
-                                                        </button>
-                                                    )}
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {b.status === 'confirmed' && (
+                                                            <button 
+                                                                onClick={() => generateTicketPDF(b, b.userId?.name)}
+                                                                className="text-indigo-400 hover:text-indigo-300 font-mono text-xs bg-indigo-500/10 px-2.5 py-1.5 rounded-lg border border-indigo-500/30 transition flex items-center gap-1"
+                                                                title="Download Pass PDF"
+                                                            >
+                                                                <FaFileDownload size={11} /> Pass
+                                                            </button>
+                                                        )}
+                                                        {b.status === 'pending' && (
+                                                            <button onClick={() => handleConfirmBooking(b._id, 'paid')} className="text-emerald-400 hover:text-emerald-300 font-mono text-xs bg-emerald-500/10 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition">
+                                                                Authorize
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

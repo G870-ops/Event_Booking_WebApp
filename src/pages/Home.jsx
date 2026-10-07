@@ -5,6 +5,8 @@ import { AuthContext } from '../context/AuthContext';
 import { FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaTicketAlt, FaCheckCircle, FaSpinner } from 'react-icons/fa';
 import toast, { Toaster } from 'react-hot-toast';
 
+import PaymentCheckoutModal from '../components/PaymentCheckoutModal';
+
 const Home = () => {
     const { user } = useContext(AuthContext);
     const navigate = useNavigate();
@@ -21,6 +23,9 @@ const Home = () => {
     const [bookingStep, setBookingStep] = useState('view');
     const [otp, setOtp] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
+    const [quickBookingId, setQuickBookingId] = useState('');
+    const [showPayModal, setShowPayModal] = useState(false);
+    const [payModalInvite, setPayModalInvite] = useState(null);
 
     // Background Customization States
     const [bgColor, setBgColor] = useState('#0a0a0c');
@@ -132,15 +137,22 @@ const Home = () => {
         if (otp.length !== 6) return toast.error('Enter a valid 6-digit OTP');
         setBookingLoading(true);
         try {
-            await api.post('/bookings', { inviteId: quickViewInvite._id, otp });
-            if (quickViewInvite.ticketPrice === 0) {
+            const { data } = await api.post('/bookings', { inviteId: quickViewInvite._id, otp });
+            const bId = data.bookingId;
+            setQuickBookingId(bId);
+
+            if (quickViewInvite.ticketPrice === 0 || data.isFree) {
                 setBookingStep('success');
+                toast.success('Free pass activated!');
                 setTimeout(() => { setQuickViewInvite(null); navigate('/dashboard'); }, 2000);
             } else {
-                setBookingStep('payment');
+                const targetInvite = quickViewInvite;
+                setQuickViewInvite(null);
+                setPayModalInvite(targetInvite);
+                setShowPayModal(true);
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || 'OTP verification failed');
+            toast.error(error.response?.data?.error || error.response?.data?.message || 'OTP verification failed');
         } finally {
             setBookingLoading(false);
         }
@@ -487,6 +499,24 @@ const Home = () => {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* Dynamic Stripe & UPI Payment Checkout Modal */}
+            {payModalInvite && (
+                <PaymentCheckoutModal
+                    isOpen={showPayModal}
+                    onClose={() => {
+                        setShowPayModal(false);
+                        setPayModalInvite(null);
+                        navigate('/dashboard');
+                    }}
+                    bookingId={quickBookingId}
+                    invite={payModalInvite}
+                    user={user}
+                    onPaymentSuccess={() => {
+                        fetchInvites();
+                    }}
+                />
             )}
         </div>
     );
