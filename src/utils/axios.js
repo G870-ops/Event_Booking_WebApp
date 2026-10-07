@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const API_HOST = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'development' ? "http://localhost:5000" : "https://event-booking-web-app-z7wh.vercel.app");
+const API_HOST = (import.meta.env.VITE_API_URL !== undefined && import.meta.env.VITE_API_URL !== "")
+  ? import.meta.env.VITE_API_URL
+  : (import.meta.env.MODE === 'development' ? "http://localhost:5000" : "");
 
 const api = axios.create({
   baseURL: `${API_HOST}/api`,
