@@ -17,8 +17,6 @@ import {
     FaTimesCircle
 } from 'react-icons/fa';
 
-import PaymentCheckoutModal from '../components/PaymentCheckoutModal';
-
 const InviteDetail = () => {
     const { id } = useParams();
     const { user } = useContext(AuthContext);
@@ -32,8 +30,6 @@ const InviteDetail = () => {
     const [otp, setOtp] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState('');
-    const [currentBookingId, setCurrentBookingId] = useState('');
-    const [showPaymentModal, setShowPaymentModal] = useState(false);
     
     // Futuristic Multi-Step Payment Checkout states
     const [bookingStep, setBookingStep] = useState('otp'); // 'otp', 'payment', 'success'
@@ -95,16 +91,13 @@ const InviteDetail = () => {
         setBookingError('');
         try {
             // Register booking structure in database
-            const { data } = await api.post('/bookings', {
+            await api.post('/bookings', {
                 inviteId: invite._id,
                 otp: otp
             });
 
-            const bId = data.bookingId;
-            setCurrentBookingId(bId);
-
             // Transition based on event pricing
-            if (invite.ticketPrice === 0 || data.isFree) {
+            if (invite.ticketPrice === 0) {
                 // Free events bypass checkout and show success pass directly
                 setBookingStep('success');
                 setTimeout(() => {
@@ -112,9 +105,8 @@ const InviteDetail = () => {
                     navigate('/dashboard');
                 }, 3000);
             } else {
-                // Paid events open our dynamic Stripe & UPI checkout modal!
-                setShowModal(false);
-                setShowPaymentModal(true);
+                // Paid events redirect to futuristic checkout
+                setBookingStep('payment');
             }
         } catch (error) {
             setBookingError(error.response?.data?.error || error.response?.data?.message || 'OTP verification failed. Please check the code.');
@@ -552,21 +544,6 @@ const InviteDetail = () => {
                     </div>
                 </div>
             )}
-
-            {/* Dedicated Stripe Card & Dynamic UPI Checkout Modal */}
-            <PaymentCheckoutModal
-                isOpen={showPaymentModal}
-                onClose={() => {
-                    setShowPaymentModal(false);
-                    navigate('/dashboard');
-                }}
-                bookingId={currentBookingId}
-                invite={invite}
-                user={user}
-                onPaymentSuccess={() => {
-                    setInvite(prev => prev ? { ...prev, availableSeats: Math.max(0, prev.availableSeats - 1) } : prev);
-                }}
-            />
         </div>
     );
 };
