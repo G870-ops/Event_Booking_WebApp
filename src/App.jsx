@@ -9,13 +9,25 @@ import UserDashboard from './pages/UserDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentFailed from './pages/PaymentFailed';
+import EventHub from './pages/EventHub';
+import CheckInStation from './pages/CheckInStation';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import BackgroundLayer from './components/BackgroundLayer';
+import ThemeCustomizerModal from './components/ThemeCustomizerModal';
+import FloatingThemeButton from './components/FloatingThemeButton';
 
 function App() {
     return (
         <Router>
-            <div className="min-h-screen bg-gray-50 flex flex-col">
+            <div className="min-h-screen flex flex-col relative text-white bg-transparent">
+                {/* Dynamic Global Background (Video / Image / Gradient) */}
+                <BackgroundLayer />
+
+                {/* Navigation Bar */}
                 <Navbar />
-                <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+                {/* Main Content Area */}
+                <main className="flex-grow relative z-10">
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/invites/:id" element={<InviteDetail />} />
@@ -23,11 +35,20 @@ function App() {
                         <Route path="/register" element={<Register />} />
                         <Route path="/dashboard" element={<UserDashboard />} />
                         <Route path="/admin" element={<AdminDashboard />} />
+                        <Route path="/events/:id/hub" element={<EventHub />} />
+                        <Route path="/admin/checkin" element={<CheckInStation />} />
+                        <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
                         <Route path="/payment-success" element={<PaymentSuccess />} />
                         <Route path="/payment-failed" element={<PaymentFailed />} />
-                        <Route path="*" element={<h1 className="text-3xl font-bold text-center mt-20">404 - Page Not Found</h1>} />
+                        <Route path="*" element={<h1 className="text-3xl font-bold text-center mt-20 text-white">404 - Page Not Found</h1>} />
                     </Routes>
                 </main>
+
+                {/* Floating Theme / Video BG Launcher Button */}
+                <FloatingThemeButton />
+
+                {/* Full Live Theme & Video Background Customizer Modal */}
+                <ThemeCustomizerModal />
             </div>
         </Router>
     );

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { AuthContext } from '../context/AuthContext';
+import { ThemeContext } from '../context/ThemeContext';
 import { 
     FaCalendarAlt, 
     FaMapMarkerAlt, 
@@ -34,11 +35,13 @@ import {
     FaSpinner,
     FaQrcode,
     FaCreditCard,
-    FaWallet
+    FaWallet,
+    FaMagic
 } from 'react-icons/fa';
 
 const Home = () => {
     const { user } = useContext(AuthContext);
+    const { applyEventCategoryPreset, setIsCustomizerOpen } = useContext(ThemeContext);
     const navigate = useNavigate();
 
     // API data & loading
@@ -64,6 +67,8 @@ const Home = () => {
     const [otp, setOtp] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState('');
+    const [quickBookingId, setQuickBookingId] = useState('');
+    const [quickBookingAmount, setQuickBookingAmount] = useState(null);
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('card'); // 'card', 'upi', 'wallet'
     const [paymentProcessing, setPaymentProcessing] = useState(false);
     
@@ -223,6 +228,22 @@ const Home = () => {
         }
     };
 
+    // Helper: close quick view and reset all booking state
+    const closeQuickView = () => {
+        setQuickViewInvite(null);
+        setBookingStep('view');
+        setOtp('');
+        setBookingError('');
+        setQuickBookingId('');
+        setQuickBookingAmount(null);
+        setSelectedPaymentMethod('card');
+        setCardNumber('');
+        setCardName('');
+        setCardExpiry('');
+        setCardCvv('');
+        setTerminalLogs([]);
+    };
+
     const handleQuickVerifyBooking = async (e) => {
         e.preventDefault();
         if (otp.length !== 6) {
@@ -233,15 +254,28 @@ const Home = () => {
         setBookingLoading(true);
         setBookingError('');
         try {
-            await api.post('/bookings', {
+            const { data } = await api.post('/bookings', {
                 inviteId: quickViewInvite._id,
                 otp: otp
             });
 
-            if (quickViewInvite.ticketPrice === 0) {
+            const newBookingId = data.bookingId;
+            setQuickBookingId(newBookingId);
+
+            const payableQuick = Number(data.quote?.amount ?? quickViewInvite.currentPrice ?? quickViewInvite.ticketPrice);
+            setQuickBookingAmount(payableQuick);
+
+            if (payableQuick === 0) {
+                if (newBookingId) {
+                    await api.post(`/bookings/${newBookingId}/pay`, {
+                        bookingId: newBookingId,
+                        paymentMethod: 'free',
+                        paymentReference: `FREE_${Date.now()}`
+                    });
+                }
                 setBookingStep('success');
                 setTimeout(() => {
-                    setQuickViewInvite(null);
+                    closeQuickView();
                     navigate('/dashboard');
                 }, 3000);
             } else {
@@ -254,16 +288,38 @@ const Home = () => {
         }
     };
 
-    const handleQuickProcessPayment = () => {
+    const handleQuickProcessPayment = async () => {
         setPaymentProcessing(true);
-        setTimeout(() => {
+        try {
+            let paymentMethod = selectedPaymentMethod;
+            let reference = `PAY_${Date.now()}`;
+            if (selectedPaymentMethod === 'card') {
+                paymentMethod = 'stripe';
+                reference = `stripe_ch_${Math.random().toString(36).substring(2, 9)}`;
+            } else if (selectedPaymentMethod === 'upi') {
+                paymentMethod = 'upi_qr';
+                reference = `UPI_${Date.now()}`;
+            }
+
+            if (quickBookingId) {
+                await api.post(`/bookings/${quickBookingId}/pay`, {
+                    bookingId: quickBookingId,
+                    paymentMethod,
+                    paymentReference: reference,
+                    upiId: 'invitor.official@okaxis'
+                });
+            }
+
             setPaymentProcessing(false);
             setBookingStep('success');
             setTimeout(() => {
-                setQuickViewInvite(null);
+                closeQuickView();
                 navigate('/dashboard');
             }, 3000);
-        }, 2200);
+        } catch (error) {
+            setPaymentProcessing(false);
+            setBookingError(error.response?.data?.error || error.response?.data?.message || 'Payment processing failed.');
+        }
     };
 
     // Web3 simulation logging in Home Quick-View
@@ -562,8 +618,26 @@ const Home = () => {
             <div className="mb-12">
                 
                 {/* Horizontal Category Carousel */}
-                <div className="flex flex-col gap-2 mb-6">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 px-1">Browse Categories</h3>
+                    <div className="flex items-center justify-between mb-1 px-1 flex-wrap gap-2">
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Browse Categories</h3>
+                        <div className="flex items-center gap-2">
+                            {selectedCategory !== 'All' && (
+                                <button
+                                    onClick={() => applyEventCategoryPreset(selectedCategory)}
+                                    className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-800/60 px-3 py-1 rounded-full transition cursor-pointer"
+                                    title={`Sync background video & theme to ${selectedCategory}`}
+                                >
+                                    <FaMagic size={10} /> Sync BG with {selectedCategory}
+                                </button>
+                            )}
+                            <button
+                                onClick={() => setIsCustomizerOpen(true)}
+                                className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 px-2.5 py-1 rounded-full transition cursor-pointer"
+                            >
+                                <FaPalette size={10} /> Change BG & Video
+                            </button>
+                        </div>
+                    </div>
                     <div className="flex gap-3 overflow-x-auto pb-3 no-scrollbar scroll-smooth">
                         {categories.map((cat) => {
                             const isSelected = selectedCategory === cat;
@@ -586,7 +660,6 @@ const Home = () => {
                             );
                         })}
                     </div>
-                </div>
 
                 {/* Secondary Filters: Price, Sort and Reset */}
                 <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -723,11 +796,25 @@ const Home = () => {
                                     <div className="absolute top-4 left-4 bg-slate-950/70 border border-white/5 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold tracking-widest text-slate-300 uppercase shadow-sm">
                                         {invite.category || 'Invite'}
                                     </div>
-                                    <div className="absolute top-4 right-4 bg-slate-950/70 border border-white/5 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-black shadow-sm font-mono">
-                                        {invite.ticketPrice === 0 ? (
+                                    <div className="absolute top-4 right-4 bg-slate-950/70 border border-white/5 backdrop-blur-md px-3.5 py-1 rounded-full text-xs font-black shadow-sm font-mono flex items-center gap-1.5">
+                                        {(invite.currentPrice ?? invite.ticketPrice) === 0 ? (
                                             <span className="text-emerald-400">FREE PASS</span>
                                         ) : (
-                                            <span className="text-white">₹{invite.ticketPrice}</span>
+                                            <span className="text-white">
+                                                {invite.symbol || '₹'}{invite.currentPrice ?? invite.ticketPrice}
+                                                {invite.tiersCount > 1 && <span className="text-[9px] text-slate-400 font-bold"> from</span>}
+                                            </span>
+                                        )}
+                                        {invite.surge && (
+                                            <span title={`Dynamic pricing ×${Number(invite.multiplier).toFixed(2)}`}
+                                                className="text-[9px] font-black uppercase text-orange-400 bg-orange-950/70 border border-orange-700/60 px-1 py-0.5 rounded">
+                                                ↑{Number(invite.multiplier).toFixed(2)}×
+                                            </span>
+                                        )}
+                                        {invite.tiersCount > 0 && (
+                                            <span className="text-[9px] font-black uppercase text-indigo-300 bg-indigo-950/70 border border-indigo-700/60 px-1 py-0.5 rounded">
+                                                {invite.tiersCount} tiers
+                                            </span>
                                         )}
                                     </div>
 
@@ -1156,8 +1243,8 @@ const Home = () => {
                 <div 
                     className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300"
                     onClick={() => {
-                        if (!paymentProcessing && bookingStep !== 'success') {
-                            setQuickViewInvite(null);
+                        if (!paymentProcessing) {
+                            closeQuickView();
                         }
                     }}
                 >
@@ -1166,10 +1253,10 @@ const Home = () => {
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Close button */}
-                        {!paymentProcessing && bookingStep !== 'success' && (
+                        {!paymentProcessing && (
                             <button 
-                                onClick={() => setQuickViewInvite(null)}
-                                className="absolute top-4 right-4 z-10 p-2 bg-slate-950/80 border border-white/5 backdrop-blur-md rounded-full text-slate-400 hover:text-white transition shadow"
+                                onClick={closeQuickView}
+                                className="absolute top-4 right-4 z-10 p-2 bg-slate-950/80 border border-white/5 backdrop-blur-md rounded-full text-slate-400 hover:text-white transition shadow cursor-pointer"
                             >
                                 <FaTimes size={12} />
                             </button>
@@ -1218,18 +1305,28 @@ const Home = () => {
                                     <div className="flex items-center justify-between">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ticket Cost</span>
-                                            <span className="text-xl font-black text-white font-mono mt-0.5 font-display">
-                                                {quickViewInvite.ticketPrice === 0 ? (
+                                            <span className="text-xl font-black text-white font-mono mt-0.5 font-display flex items-center gap-2">
+                                                {(quickViewInvite.currentPrice ?? quickViewInvite.ticketPrice) === 0 ? (
                                                     <span className="text-emerald-400">FREE</span>
                                                 ) : (
-                                                    <span>₹{quickViewInvite.ticketPrice}</span>
+                                                    <span>{quickViewInvite.symbol || '₹'}{quickViewInvite.currentPrice ?? quickViewInvite.ticketPrice}</span>
+                                                )}
+                                                {quickViewInvite.surge && (
+                                                    <span className="text-[9px] font-black uppercase text-orange-400 bg-orange-950/60 border border-orange-800 px-1.5 py-0.5 rounded">
+                                                        ↑{Number(quickViewInvite.multiplier).toFixed(2)}× surge
+                                                    </span>
+                                                )}
+                                                {quickViewInvite.tiersCount > 0 && (
+                                                    <span className="text-[9px] font-black uppercase text-indigo-300 bg-indigo-950/60 border border-indigo-800 px-1.5 py-0.5 rounded">
+                                                        {quickViewInvite.tiersCount} tiers
+                                                    </span>
                                                 )}
                                             </span>
                                         </div>
 
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => setQuickViewInvite(null)}
+                                                onClick={closeQuickView}
                                                 className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-4 py-2 rounded-xl text-xs transition border border-slate-700"
                                             >
                                                 Close
@@ -1314,12 +1411,18 @@ const Home = () => {
 
                                 <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl">
                                     {selectedPaymentMethod === 'upi' && (
-                                        <div className="flex flex-col items-center py-2 relative overflow-hidden">
-                                            <div className="absolute left-[20%] right-[20%] h-0.5 bg-cyan-400 shadow-[0_0_8px_#22d3ee] scanner-line"></div>
-                                            <div className="p-2 bg-white rounded-lg mb-2">
-                                                <div className="w-24 h-24 bg-[url('https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=200')] bg-cover filter invert opacity-90"></div>
+                                        <div className="flex flex-col items-center py-2 space-y-3">
+                                            <div className="p-2 bg-white rounded-xl shadow-lg">
+                                                <img 
+                                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`upi://pay?pa=invitor.official@okaxis&pn=INVITOR%20Events&am=${quickBookingAmount ?? quickViewInvite.currentPrice ?? quickViewInvite.ticketPrice}&tr=${quickBookingId || 'BKG'}&cu=INR`)}`}
+                                                    alt="UPI QR Code"
+                                                    className="w-32 h-32 object-contain"
+                                                />
                                             </div>
-                                            <p className="text-[10px] text-cyan-400 font-mono">quantum_instant.upi</p>
+                                            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-[10px] font-mono text-cyan-400">
+                                                <span>invitor.official@okaxis</span>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 text-center">Scan with Google Pay, PhonePe, Paytm, or BHIM</p>
                                         </div>
                                     )}
 
@@ -1397,7 +1500,7 @@ const Home = () => {
                                 </div>
 
                                 <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-                                    <span className="text-[10px] text-slate-500 font-bold uppercase font-mono">Gross Total: ₹{quickViewInvite.ticketPrice}</span>
+                                    <span className="text-[10px] text-slate-500 font-bold uppercase font-mono">Gross Total: {quickViewInvite.symbol || '₹'}{quickBookingAmount ?? quickViewInvite.currentPrice ?? quickViewInvite.ticketPrice}</span>
                                     <button
                                         onClick={handleQuickProcessPayment}
                                         disabled={paymentProcessing}
@@ -1435,7 +1538,20 @@ const Home = () => {
                                             ></div>
                                         ))}
                                     </div>
-                                    <span className="text-[7px] text-slate-600 block text-center font-mono tracking-widest mt-1.5 uppercase font-bold">INV-{quickViewInvite._id.substring(18)}</span>
+                                    <div className="flex gap-3 pt-3">
+                                        <button
+                                            onClick={() => { closeQuickView(); navigate('/dashboard'); }}
+                                            className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition shadow-lg shadow-indigo-500/25 cursor-pointer"
+                                        >
+                                            View in Dashboard
+                                        </button>
+                                        <button
+                                            onClick={closeQuickView}
+                                            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer"
+                                        >
+                                            Close
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}

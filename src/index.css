@@ -2,44 +2,18 @@
 @import "tailwindcss";
 
 :root {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #030712; /* gray-950 */
-  color: #f8fafc; /* slate-50 */
-  position: relative;
-  min-height: 100vh;
+  background-color: #0b0f19; /* Sleek dark-mode first background */
+  color: #f1f5f9;
 }
 
-/* Background Mesh / Glows */
-body::before {
-  content: '';
-  position: fixed;
-  top: -20%;
-  left: -10%;
-  width: 50vw;
-  height: 50vw;
-  background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
-  z-index: -1;
-  pointer-events: none;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  bottom: -20%;
-  right: -10%;
-  width: 50vw;
-  height: 50vw;
-  background: radial-gradient(circle, rgba(147, 51, 234, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
-  z-index: -1;
-  pointer-events: none;
-}
-
+/* Custom Typography classes using Space Grotesk */
 .font-display {
   font-family: 'Space Grotesk', sans-serif;
 }
@@ -53,53 +27,97 @@ body::after {
   scrollbar-width: none;
 }
 
-/* Smooth transition defaults */
-* {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
+/* Custom ambient neon glow */
+.ambient-glow {
+  position: absolute;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.05) 50%, rgba(0, 0, 0, 0) 100%);
+  filter: blur(40px);
+  pointer-events: none;
 }
 
-/* Glassmorphism Classes */
+.ambient-glow-cyan {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.04) 60%, rgba(0, 0, 0, 0) 100%);
+  filter: blur(35px);
+  pointer-events: none;
+}
+
+/* Glassmorphism panel styling */
 .glass-panel {
-  background: rgba(17, 24, 39, 0.6); /* gray-900 with opacity */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-card {
-  background: rgba(30, 41, 59, 0.4); /* slate-800 */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
-}
-.glass-card:hover {
-  background: rgba(30, 41, 59, 0.6);
-  border-color: rgba(99, 102, 241, 0.4); /* indigo-500 */
-  transform: translateY(-4px);
-  box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.2);
 }
 
-/* Futuristic Inputs */
-.futuristic-input {
-  background-color: rgba(15, 23, 42, 0.8); /* slate-900 */
-  border: 1px solid rgba(51, 65, 85, 0.8); /* slate-700 */
-  color: white;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
-  outline: none;
+.glass-card-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.futuristic-input:focus {
-  border-color: #6366f1; /* indigo-500 */
-  box-shadow: 0 0 0 1px #6366f1, 0 0 20px -5px rgba(99, 102, 241, 0.4);
+.glass-card-hover:hover {
+  transform: translateY(-6px);
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 20px 40px -15px rgba(99, 102, 241, 0.25);
 }
 
-/* Text Gradients */
-.text-gradient {
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-image: linear-gradient(to right, #818cf8, #c084fc);
+/* Smooth transition for category filtering animations */
+.transition-all-custom {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Futuristic 3D Card Flip styling */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* Neon laser scanning line */
+@keyframes laser-scan {
+  0% {
+    top: 0%;
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0.15;
+  }
+}
+.scanner-line {
+  animation: laser-scan 2.5s ease-in-out infinite;
+}
+
+/* Float typing chatbot dots */
+@keyframes float-dot {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+.dot-float-1 {
+  animation: float-dot 1.2s infinite ease-in-out;
+}
+.dot-float-2 {
+  animation: float-dot 1.2s infinite ease-in-out 0.2s;
+}
+.dot-float-3 {
+  animation: float-dot 1.2s infinite ease-in-out 0.4s;
+}
+
+

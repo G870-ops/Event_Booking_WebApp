@@ -14,8 +14,10 @@ import {
     FaLock,
     FaCheckCircle,
     FaSpinner,
-    FaTimesCircle
+    FaTimesCircle,
+    FaCopy
 } from 'react-icons/fa';
+
 
 const InviteDetail = () => {
     const { id } = useParams();
@@ -30,6 +32,7 @@ const InviteDetail = () => {
     const [otp, setOtp] = useState('');
     const [bookingLoading, setBookingLoading] = useState(false);
     const [bookingError, setBookingError] = useState('');
+    const [currentBookingId, setCurrentBookingId] = useState('');
     
     // Futuristic Multi-Step Payment Checkout states
     const [bookingStep, setBookingStep] = useState('otp'); // 'otp', 'payment', 'success'
@@ -38,13 +41,29 @@ const InviteDetail = () => {
     
     // Card details state
     const [cardNumber, setCardNumber] = useState('');
-    const [cardName, setCardName] = useState('');
+    const [cardName, setCardName] = useState(user?.name || '');
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCvv, setCardCvv] = useState('');
     const [isCardFlipped, setIsCardFlipped] = useState(false);
 
+    // UPI details state
+    const [userUpiId, setUserUpiId] = useState('');
+    const [upiUtr, setUpiUtr] = useState('');
+    const [copied, setCopied] = useState(false);
+
     // Simulated Web3 Wallet terminal states
     const [terminalLogs, setTerminalLogs] = useState([]);
+
+    // Smart ticketing: live quote, tiers, currency, waitlist
+    const [pricing, setPricing] = useState(null);
+    const [currencies, setCurrencies] = useState([]);
+    const [tierId, setTierId] = useState('');
+    const [quantity, setQuantity] = useState(1);
+    const [currency, setCurrency] = useState('');
+    const [waitStatus, setWaitStatus] = useState(null);
+    const [waitBusy, setWaitBusy] = useState(false);
+    const [notice, setNotice] = useState('');
+    const [bookingAmount, setBookingAmount] = useState(null);
     
     useEffect(() => {
         const fetchInviteDetails = async () => {
@@ -59,6 +78,69 @@ const InviteDetail = () => {
         };
         fetchInviteDetails();
     }, [id]);
+
+    // Live pricing quote (surge + tiers + group discount + currency)
+    useEffect(() => {
+        if (!id) return;
+        let cancelled = false;
+        const params = new URLSearchParams();
+        if (tierId) params.set('tierId', tierId);
+        params.set('quantity', String(quantity));
+        if (currency) params.set('currency', currency);
+        api.get(`/ticketing/invites/${id}/pricing?${params.toString()}`)
+            .then(({ data }) => { if (!cancelled) setPricing(data); })
+            .catch(err => console.error('Pricing load failed', err));
+        return () => { cancelled = true; };
+    }, [id, tierId, quantity, currency]);
+
+    // Supported currencies for the checkout selector
+    useEffect(() => {
+        api.get('/ticketing/currencies')
+            .then(({ data }) => setCurrencies(data.currencies || []))
+            .catch(() => setCurrencies([]));
+    }, []);
+
+    // My waitlist position for this event
+    useEffect(() => {
+        if (!user || !id) return;
+        api.get(`/waitlist/event/${id}/status`)
+            .then(({ data }) => setWaitStatus(data))
+            .catch(() => setWaitStatus(null));
+    }, [user, id]);
+
+    const joinWaitlist = async () => {
+        if (!user) { navigate('/login'); return; }
+        setWaitBusy(true);
+        setNotice('');
+        try {
+            const { data } = await api.post(`/waitlist/${id}`, { quantity });
+            setWaitStatus({ onWaitlist: true, status: data.entry?.status || 'waiting', position: data.entry?.position, seatsAhead: 0 });
+            setNotice(data.message || 'You are on the waitlist — we will notify you the moment a seat opens.');
+        } catch (err) {
+            setNotice(err.response?.data?.error || 'Could not join the waitlist');
+        } finally {
+            setWaitBusy(false);
+        }
+    };
+
+    const leaveWaitlist = async () => {
+        setWaitBusy(true);
+        setNotice('');
+        try {
+            await api.delete(`/waitlist/${id}`);
+            setWaitStatus({ onWaitlist: false });
+            setNotice('You left the waitlist.');
+        } catch (err) {
+            setNotice(err.response?.data?.error || 'Could not leave the waitlist');
+        } finally {
+            setWaitBusy(false);
+        }
+    };
+
+    const quote = pricing?.quote;
+    const symbol = quote?.symbol || invite?.symbol || '₹';
+    const allowedCurrencies = invite?.currency?.allowed || [];
+    const showCurrencyPicker = currencies.length > 1 && allowedCurrencies.length > 1;
 
     const handleBookClick = async () => {
         if (!user) {
@@ -91,21 +173,37 @@ const InviteDetail = () => {
         setBookingError('');
         try {
             // Register booking structure in database
-            await api.post('/bookings', {
+            const { data } = await api.post('/bookings', {
                 inviteId: invite._id,
-                otp: otp
+                otp: otp,
+                tierId: tierId || '',
+                quantity,
+                currency: currency || undefined
             });
 
+            const newBookingId = data.bookingId;
+            setCurrentBookingId(newBookingId);
+
+            const payable = Number(data.quote?.amount ?? quote?.total ?? invite.ticketPrice);
+            setBookingAmount(payable);
+
             // Transition based on event pricing
-            if (invite.ticketPrice === 0) {
-                // Free events bypass checkout and show success pass directly
+            if (payable === 0) {
+                // Free events automatically confirm
+                if (newBookingId) {
+                    await api.post(`/bookings/${newBookingId}/pay`, {
+                        bookingId: newBookingId,
+                        paymentMethod: 'free',
+                        paymentReference: `FREE_${Date.now()}`
+                    });
+                }
                 setBookingStep('success');
                 setTimeout(() => {
                     setShowModal(false);
                     navigate('/dashboard');
                 }, 3000);
             } else {
-                // Paid events redirect to futuristic checkout
+                // Paid events redirect to payment
                 setBookingStep('payment');
             }
         } catch (error) {
@@ -115,17 +213,40 @@ const InviteDetail = () => {
         }
     };
 
-    const handleProcessPayment = () => {
+    const handleProcessPayment = async () => {
         setPaymentProcessing(true);
-        // Simulate quantum transaction clearing
-        setTimeout(() => {
+        setBookingError('');
+
+        try {
+            let paymentMethod = selectedPaymentMethod;
+            let reference = `PAY_${Date.now()}`;
+            if (selectedPaymentMethod === 'card') {
+                paymentMethod = 'stripe';
+                reference = `stripe_ch_${Math.random().toString(36).substring(2, 9)}`;
+            } else if (selectedPaymentMethod === 'upi') {
+                paymentMethod = 'upi_qr';
+                reference = upiUtr ? `UTR_${upiUtr}` : `UPI_${Date.now()}`;
+            }
+
+            if (currentBookingId) {
+                await api.post(`/bookings/${currentBookingId}/pay`, {
+                    bookingId: currentBookingId,
+                    paymentMethod,
+                    paymentReference: reference,
+                    upiId: userUpiId || 'invitor.official@okaxis'
+                });
+            }
+
             setPaymentProcessing(false);
             setBookingStep('success');
             setTimeout(() => {
                 setShowModal(false);
                 navigate('/dashboard');
             }, 3000);
-        }, 2200);
+        } catch (error) {
+            setPaymentProcessing(false);
+            setBookingError(error.response?.data?.error || error.response?.data?.message || 'Payment processing failed. Please try again.');
+        }
     };
 
     // Simulated blockchain execution log loop for MetaMask
@@ -213,22 +334,177 @@ const InviteDetail = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                        <div className="flex flex-col">
-                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Pass Valuation</span>
-                            <span className="text-2xl font-black text-white font-mono mt-1">
-                                {invite.ticketPrice === 0 ? <span className="text-emerald-400">FREE</span> : `₹${invite.ticketPrice}`}
-                            </span>
-                            <span className="text-[10px] text-slate-500 mt-1 font-bold">{invite.availableSeats} of {invite.totalSeats} seats remaining</span>
+                    {/* Ticket tier selector */}
+                    {pricing?.tiers?.length > 0 && (
+                        <div className="mb-6">
+                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-3">Select your pass tier</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {pricing.tiers.map(t => {
+                                    const soldOut = t.remaining <= 0 || !t.active;
+                                    const selected = tierId === t._id;
+                                    return (
+                                        <button
+                                            key={t._id}
+                                            type="button"
+                                            disabled={soldOut}
+                                            onClick={() => { setTierId(selected ? '' : t._id); setQuantity(1); }}
+                                            className={`text-left p-4 rounded-xl border transition ${selected
+                                                ? 'bg-indigo-950/60 border-indigo-500 ring-1 ring-indigo-500/40'
+                                                : 'bg-slate-950/60 border-slate-800 hover:border-slate-600'} ${soldOut ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-2 mb-1">
+                                                <span className="font-bold text-white text-sm">{t.name}</span>
+                                                <span className="font-mono font-black text-white text-sm">{symbol}{t.price}</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 block leading-relaxed line-clamp-2">
+                                                {t.description || (t.perks?.length ? t.perks.join(' • ') : 'Standard entry')}
+                                            </span>
+                                            <span className={`text-[10px] font-bold mt-2 block ${t.remaining > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {soldOut ? 'SOLD OUT' : `${t.remaining} left${t.remaining <= 10 ? ' — closing soon' : ''}`}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setTierId('')}
+                                className={`mt-2 text-[10px] font-bold ${!tierId ? 'text-indigo-400' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                ← General admission (base price)
+                            </button>
                         </div>
-                        <button 
-                            onClick={handleBookClick}
-                            disabled={bookingLoading || invite.availableSeats <= 0}
-                            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/15"
-                        >
-                            {bookingLoading ? 'Processing...' : invite.availableSeats <= 0 ? 'Sold Out' : 'Book Access Pass'}
-                        </button>
+                    )}
+
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-5">
+                        {/* Quantity + currency */}
+                        <div className="flex flex-wrap items-end gap-4">
+                            <div>
+                                <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">Quantity</span>
+                                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl p-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                        className="w-8 h-8 rounded-lg bg-slate-900 text-slate-300 hover:text-white font-bold transition"
+                                    >−</button>
+                                    <span className="w-8 text-center font-mono font-black text-white">{quantity}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setQuantity(Math.min(Number(quote?.maxQty) || 10, quantity + 1))}
+                                        className="w-8 h-8 rounded-lg bg-slate-900 text-slate-300 hover:text-white font-bold transition"
+                                    >+</button>
+                                </div>
+                            </div>
+
+                            {showCurrencyPicker && (
+                                <div>
+                                    <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block mb-2">Currency</span>
+                                    <select
+                                        value={currency || invite.currency?.base || 'INR'}
+                                        onChange={e => setCurrency(e.target.value)}
+                                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-indigo-500"
+                                    >
+                                        {currencies
+                                            .filter(c => allowedCurrencies.includes(c.code))
+                                            .map(c => <option key={c.code} value={c.code}>{c.code} ({c.symbol})</option>)}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Live price */}
+                        <div className="flex flex-col md:items-end">
+                            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                                Pass Valuation{quote?.tierName ? ` • ${quote.tierName}` : ''}
+                            </span>
+                            <span className="text-2xl font-black text-white font-mono mt-1 flex items-center gap-2 flex-wrap">
+                                {quote
+                                    ? (quote.total === 0 ? <span className="text-emerald-400">FREE</span> : `${symbol}${quote.total}`)
+                                    : (invite.ticketPrice === 0 ? <span className="text-emerald-400">FREE</span> : `₹${invite.ticketPrice}`)}
+                                {quote?.surge && (
+                                    <span
+                                        title={`Dynamic pricing active — demand ratio ${quote.demandRatio}`}
+                                        className="text-[10px] font-black uppercase text-orange-400 bg-orange-950/60 border border-orange-800 px-1.5 py-0.5 rounded"
+                                    >
+                                        surge ×{Number(quote.multiplier).toFixed(2)}
+                                    </span>
+                                )}
+                                {quote?.savedVsBase && (
+                                    <span className="text-[10px] font-black uppercase text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-1.5 py-0.5 rounded">
+                                        early-bird −{Math.round((1 - Number(quote.multiplier)) * 100)}%
+                                    </span>
+                                )}
+                            </span>
+                            <span className="text-[10px] text-slate-500 mt-1 font-bold text-right">
+                                {invite.availableSeats} of {invite.totalSeats} seats remaining
+                                {quote?.quantity > 1 ? ` • ${quote.quantity} tickets` : ''}
+                            </span>
+                            {quote?.groupDiscount?.applied && (
+                                <span className="text-[10px] font-bold text-emerald-400 mt-1">
+                                    Group discount applied: −{symbol}{quote.groupDiscount.amount} ({quote.groupDiscount.percent}%)
+                                </span>
+                            )}
+                            {pricing?.refundPolicy && (
+                                <span className="text-[10px] text-slate-600 font-semibold mt-1">
+                                    Refunds: {pricing.refundPolicy.mode} policy
+                                    {pricing.refundPolicy.mode === 'tiered'
+                                        ? ` • ${pricing.refundPolicy.feePercent}% fee before ${pricing.refundPolicy.cutoffHours}h to start`
+                                        : ''}
+                                </span>
+                            )}
+                        </div>
                     </div>
+
+                    {/* CTA row */}
+                    <div className="flex flex-wrap items-center justify-end gap-3 mt-6">
+                        <Link
+                            to={`/events/${invite._id}/hub`}
+                            className="text-xs font-bold text-indigo-400 hover:text-indigo-300 border border-indigo-800/60 bg-indigo-950/40 px-5 py-3.5 rounded-xl transition"
+                            title="Live hub: stream, polls, floor map, networking"
+                        >
+                            Open Event Hub →
+                        </Link>
+
+                        {invite.availableSeats > 0 ? (
+                            <button
+                                onClick={handleBookClick}
+                                disabled={bookingLoading || (tierId && quote?.tierRemaining === 0)}
+                                className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/15"
+                            >
+                                {bookingLoading ? 'Processing...' : (tierId && quote?.tierRemaining === 0) ? 'Tier Sold Out' : 'Book Access Pass'}
+                            </button>
+                        ) : waitStatus?.onWaitlist ? (
+                            <div className="flex flex-col items-end gap-1.5">
+                                <span className="text-[11px] font-bold text-amber-400 bg-amber-950/50 border border-amber-800 px-3 py-2 rounded-lg">
+                                    On waitlist{waitStatus.position ? ` • position #${waitStatus.position}` : ''}
+                                    {waitStatus.status === 'promoted' ? ' • seat held for you!' : ''}
+                                </span>
+                                <button
+                                    onClick={leaveWaitlist}
+                                    disabled={waitBusy}
+                                    className="text-[11px] text-red-400 hover:text-red-300 font-bold disabled:opacity-50"
+                                >
+                                    {waitBusy ? 'Working…' : 'Leave waitlist'}
+                                </button>
+                            </div>
+                        ) : pricing?.waitlistEnabled !== false ? (
+                            <button
+                                onClick={joinWaitlist}
+                                disabled={waitBusy}
+                                className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg shadow-amber-600/15"
+                            >
+                                {waitBusy ? 'Joining…' : 'Sold Out — Join Waitlist'}
+                            </button>
+                        ) : (
+                            <span className="bg-slate-800 text-slate-400 font-bold px-8 py-3.5 rounded-xl text-sm">Sold Out</span>
+                        )}
+                    </div>
+
+                    {notice && (
+                        <div className="mt-6 p-4 bg-indigo-950/40 border border-indigo-800 text-indigo-300 rounded-xl text-center text-xs font-semibold">
+                            {notice}
+                        </div>
+                    )}
 
                     {bookingError && !showModal && (
                         <div className="mt-6 p-4 bg-red-950/40 border border-red-800 text-red-400 rounded-xl text-center text-xs font-semibold">
@@ -338,18 +614,48 @@ const InviteDetail = () => {
                                 <div className="bg-slate-950/50 border border-slate-800/60 p-5 rounded-2xl">
                                     {/* 1. UPI QR Code Method */}
                                     {selectedPaymentMethod === 'upi' && (
-                                        <div className="flex flex-col items-center py-4 relative overflow-hidden">
-                                            {/* Pulsing scanning beam line */}
-                                            <div className="absolute left-[30%] right-[30%] h-0.5 bg-cyan-400 shadow-[0_0_10px_#22d3ee] scanner-line"></div>
-                                            
-                                            <div className="p-3 bg-white rounded-xl mb-4 border border-indigo-500/20 relative shadow-lg">
-                                                {/* Simulated QR Code */}
-                                                <div className="w-36 h-36 bg-[url('https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=200')] bg-cover filter invert opacity-90"></div>
+                                        <div className="flex flex-col items-center py-4 relative overflow-hidden space-y-3">
+                                            <div className="p-3 bg-white rounded-xl shadow-lg border border-indigo-500/20 relative">
+                                                <img 
+                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=invitor.official@okaxis&pn=INVITOR%20Events&am=${bookingAmount ?? quote?.total ?? invite.ticketPrice}&tr=${currentBookingId || 'BKG'}&cu=${quote?.currency || 'INR'}`)}`}
+                                                    alt="Live UPI QR Code" 
+                                                    className="w-36 h-36 object-contain"
+                                                />
                                             </div>
-                                            <p className="text-xs text-cyan-400 font-mono text-center">quantum_pay_address_v1.upi</p>
-                                            <p className="text-[10px] text-slate-500 text-center mt-2 font-bold uppercase tracking-wider">
-                                                Scan using your HUD/Mobile. Awaiting Node response...
-                                            </p>
+
+                                            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono text-cyan-400">
+                                                <span>invitor.official@okaxis</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText('invitor.official@okaxis');
+                                                        setCopied(true);
+                                                        setTimeout(() => setCopied(false), 2000);
+                                                    }}
+                                                    className="text-indigo-400 hover:text-white p-1 rounded"
+                                                    title="Copy UPI ID"
+                                                >
+                                                    <FaCopy size={12} />
+                                                </button>
+                                            </div>
+                                            {copied && <span className="text-[10px] text-emerald-400 font-bold">UPI ID Copied!</span>}
+
+                                            <div className="w-full space-y-2 mt-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Your UPI ID / VPA (e.g. name@okaxis)"
+                                                    value={userUpiId}
+                                                    onChange={(e) => setUserUpiId(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-indigo-500 font-mono"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    placeholder="UTR / 12-digit UPI Reference (Optional)"
+                                                    value={upiUtr}
+                                                    onChange={(e) => setUpiUtr(e.target.value)}
+                                                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-indigo-500 font-mono"
+                                                />
+                                            </div>
                                         </div>
                                     )}
 
@@ -374,9 +680,23 @@ const InviteDetail = () => {
                                         </div>
                                     )}
 
-                                    {/* 3. 3D Credit Card Method */}
+                                    {/* 3. 3D Credit Card Method (Stripe) */}
                                     {selectedPaymentMethod === 'card' && (
                                         <div className="flex flex-col items-center">
+                                            <div className="w-full flex justify-end mb-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCardNumber('4242 4242 4242 4242');
+                                                        setCardName(user?.name || 'Jane Doe');
+                                                        setCardExpiry('12/28');
+                                                        setCardCvv('987');
+                                                    }}
+                                                    className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold underline"
+                                                >
+                                                    Auto-fill Stripe Test Card
+                                                </button>
+                                            </div>
                                             {/* 3D Holographic Flip Card */}
                                             <div className="w-full max-w-[280px] h-44 perspective-1000 mb-6">
                                                 <div className={`relative w-full h-full duration-700 preserve-3d transition-transform ${isCardFlipped ? 'rotate-y-180' : ''}`}>
@@ -469,8 +789,15 @@ const InviteDetail = () => {
                                 {/* Price Total & Transaction CTA */}
                                 <div className="border-t border-slate-800/80 pt-4 flex items-center justify-between">
                                     <div className="flex flex-col text-left">
-                                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Gross Sum</span>
-                                        <span className="text-xl font-black text-white font-mono">₹{invite.ticketPrice}</span>
+                                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                            Gross Sum{quote?.quantity > 1 ? ` • ${quote.quantity} × ${symbol}${quote.unitPrice}` : ''}
+                                        </span>
+                                        <span className="text-xl font-black text-white font-mono">
+                                            {symbol}{bookingAmount ?? quote?.total ?? invite.ticketPrice}
+                                        </span>
+                                        {quote?.surge && (
+                                            <span className="text-[9px] text-orange-400 font-bold uppercase">includes dynamic surge ×{Number(quote.multiplier).toFixed(2)}</span>
+                                        )}
                                     </div>
                                     <button
                                         onClick={handleProcessPayment}
@@ -512,6 +839,11 @@ const InviteDetail = () => {
                                     </div>
                                     <h4 className="text-base font-bold text-white mb-1 leading-tight line-clamp-1">{invite.title}</h4>
                                     <div className="text-[10px] text-indigo-300 font-semibold mb-4 uppercase">{invite.category}</div>
+
+                                    <div className="flex items-center justify-between text-[11px] mb-4 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2">
+                                        <span className="text-slate-400 font-bold">{quote?.tierName || 'General'} × {quote?.quantity || quantity}</span>
+                                        <span className="text-emerald-400 font-black font-mono">{symbol}{bookingAmount ?? quote?.total ?? invite.ticketPrice}</span>
+                                    </div>
                                     
                                     <div className="grid grid-cols-2 gap-4 text-[10px] text-slate-400 font-semibold mb-4">
                                         <div>
