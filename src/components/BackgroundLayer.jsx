@@ -2,21 +2,32 @@ import React, { useContext, useState, useMemo } from 'react';
 import { ThemeContext, EVENT_THEME_PRESETS } from '../context/ThemeContext';
 
 export const getEmbedInfo = (url) => {
-    if (!url) return { isEmbed: false, embedUrl: '' };
-    
-    // YouTube detection
-    const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+    if (!url) return { isEmbed: false, embedUrl: '', type: 'none' };
+
+    const trimmed = url.trim();
+
+    // 1. YouTube detection (watch, shorts, embed, live, youtu.be)
+    const ytMatch = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
     if (ytMatch && ytMatch[1]) {
         const id = ytMatch[1];
         return {
             isEmbed: true,
             type: 'youtube',
-            embedUrl: `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&controls=0&loop=1&playlist=${id}&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&modestbranding=1&playsinline=1`
+            embedUrl: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&controls=0&loop=1&playlist=${id}&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&modestbranding=1&playsinline=1`
         };
     }
 
-    // Vimeo detection
-    const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+    // 2. Facebook Video detection (fb.watch, facebook.com/watch, /videos, /reel)
+    if (trimmed.includes('facebook.com') || trimmed.includes('fb.watch')) {
+        return {
+            isEmbed: true,
+            type: 'facebook',
+            embedUrl: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(trimmed)}&autoplay=1&mute=1&controls=0&show_text=0`
+        };
+    }
+
+    // 3. Vimeo detection
+    const vimeoMatch = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
     if (vimeoMatch && vimeoMatch[1]) {
         return {
             isEmbed: true,
@@ -25,7 +36,8 @@ export const getEmbedInfo = (url) => {
         };
     }
 
-    return { isEmbed: false, embedUrl: url };
+    // 4. Direct video link (.mp4, .webm, .ogg, or any direct CDN stream)
+    return { isEmbed: false, embedUrl: trimmed, type: 'direct' };
 };
 
 const BackgroundLayer = () => {
@@ -35,19 +47,20 @@ const BackgroundLayer = () => {
 
     const embedInfo = useMemo(() => {
         if (themeConfig.type === 'video') {
+            setVideoFailed(false);
             return getEmbedInfo(themeConfig.source);
         }
-        return { isEmbed: false, embedUrl: '' };
+        return { isEmbed: false, embedUrl: '', type: 'none' };
     }, [themeConfig.type, themeConfig.source]);
 
     // Accent ambient glows
     const accentColorMap = {
-        indigo: 'rgba(99, 102, 241, 0.18)',
-        cyan: 'rgba(6, 182, 212, 0.18)',
-        purple: 'rgba(168, 85, 247, 0.18)',
-        emerald: 'rgba(16, 185, 129, 0.18)',
-        amber: 'rgba(245, 158, 11, 0.18)',
-        rose: 'rgba(244, 63, 94, 0.18)'
+        indigo: 'rgba(99, 102, 241, 0.20)',
+        cyan: 'rgba(6, 182, 212, 0.20)',
+        purple: 'rgba(168, 85, 247, 0.20)',
+        emerald: 'rgba(16, 185, 129, 0.20)',
+        amber: 'rgba(245, 158, 11, 0.20)',
+        rose: 'rgba(244, 63, 94, 0.20)'
     };
     const currentAccentGlow = accentColorMap[themeConfig.accent] || accentColorMap.indigo;
 
@@ -61,13 +74,15 @@ const BackgroundLayer = () => {
                 {/* VIDEO BACKGROUND */}
                 {themeConfig.type === 'video' && !videoFailed && (
                     embedInfo.isEmbed ? (
-                        <div className="relative w-full h-full pointer-events-none scale-125 overflow-hidden">
+                        <div className="relative w-full h-full pointer-events-none scale-125 overflow-hidden flex items-center justify-center">
                             <iframe
+                                key={embedInfo.embedUrl}
                                 src={embedInfo.embedUrl}
-                                title="Custom Background Video"
-                                className="w-full h-full pointer-events-none border-0"
-                                allow="autoplay; encrypted-media"
+                                title="Event Background Video Stream"
+                                className="w-full h-full min-w-[130%] min-h-[130%] pointer-events-none border-0 object-cover"
+                                allow="autoplay; encrypted-media; picture-in-picture"
                                 tabIndex="-1"
+                                onError={() => setVideoFailed(true)}
                             />
                         </div>
                     ) : (
@@ -82,6 +97,7 @@ const BackgroundLayer = () => {
                         >
                             <source src={themeConfig.source} type="video/mp4" />
                             <source src={themeConfig.source} type="video/webm" />
+                            <source src={themeConfig.source} type="video/ogg" />
                         </video>
                     )
                 )}

@@ -76,42 +76,65 @@ export const EVENT_THEME_PRESETS = {
     }
 };
 
-// Curated Video Presets
+// Curated Video Presets (Direct MP4, YouTube, Facebook, Stream links)
 export const VIDEO_PRESETS = [
     {
         id: 'vid-matrix',
         name: 'Cyber Digital Matrix',
         source: 'https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-screens-with-code-31911-large.mp4',
         category: 'Tech',
-        tag: 'Sci-Fi'
+        tag: 'Direct MP4'
     },
     {
         id: 'vid-concert',
-        name: 'EDM Concert Lights',
+        name: 'Neon EDM Stage Festival',
         source: 'https://assets.mixkit.co/videos/preview/mixkit-dj-playing-music-at-a-club-41717-large.mp4',
         category: 'Music',
-        tag: 'Festival'
-    },
-    {
-        id: 'vid-ink',
-        name: 'Ethereal Ink Nebula',
-        source: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-43394-large.mp4',
-        category: 'Art',
-        tag: 'Fluid'
-    },
-    {
-        id: 'vid-crowd',
-        name: 'Vibrant Night Crowd',
-        source: 'https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-crowd-at-a-concert-40156-large.mp4',
-        category: 'Party',
-        tag: 'Euphoria'
+        tag: 'Direct MP4'
     },
     {
         id: 'vid-tunnel',
-        name: 'Hyperdrive Tunnel',
+        name: 'Hyperdrive Lights Tunnel',
         source: 'https://assets.mixkit.co/videos/preview/mixkit-tunnel-of-futuristic-lights-in-motion-32771-large.mp4',
         category: 'Tech',
-        tag: 'Motion'
+        tag: 'Motion Loop'
+    },
+    {
+        id: 'vid-ink',
+        name: 'Ethereal Ink Nebula Swirl',
+        source: 'https://assets.mixkit.co/videos/preview/mixkit-ink-swirling-in-water-43394-large.mp4',
+        category: 'Art',
+        tag: 'Fluid Art'
+    },
+    {
+        id: 'vid-crowd',
+        name: 'Vibrant Nightlife Crowd',
+        source: 'https://assets.mixkit.co/videos/preview/mixkit-silhouette-of-a-crowd-at-a-concert-40156-large.mp4',
+        category: 'Party',
+        tag: 'Festival'
+    },
+    {
+        id: 'vid-yt-cybercity',
+        name: 'Neo City Ambient Loop',
+        // Yahan parameters add kiye hain (mute=0)
+        source: 'https://www.youtube.com/watch?v=5qap5aO4i9A&autoplay=1&mute=0&loop=1&playlist=5qap5aO4i9A',
+        category: 'Tech',
+        tag: 'YouTube 4K'
+    },
+    {
+        id: 'vid-yt-motion',
+        name: 'Deep Cosmos Starfield',
+        // Yahan bhi parameters add kiye hain (mute=0)
+        source: 'https://www.youtube.com/watch?v=jfKfPfyJRdk&autoplay=1&mute=0&loop=1&playlist=jfKfPfyJRdk',
+        category: 'Art',
+        tag: 'YouTube Stream'
+    },
+    {
+        id: 'vid-fb-sample',
+        name: 'Live Festival Showcase',
+        source: 'https://www.facebook.com/facebook/videos/10153231379946729/',
+        category: 'Party',
+        tag: 'Facebook Video'
     }
 ];
 
@@ -146,6 +169,24 @@ export const IMAGE_PRESETS = [
         name: 'Underground Arena',
         source: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&q=80&w=1600',
         category: 'Party'
+    },
+    {
+        id: 'img-luxury',
+        name: 'Grand Gala Ballroom',
+        source: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?auto=format&fit=crop&q=80&w=1600',
+        category: 'Conference'
+    },
+    {
+        id: 'img-stadium',
+        name: 'Championship Arena Lights',
+        source: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&q=80&w=1600',
+        category: 'Sports'
+    },
+    {
+        id: 'img-aurora',
+        name: 'Velvet Aurora Borealis',
+        source: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&q=80&w=1600',
+        category: 'Art'
     }
 ];
 
@@ -183,16 +224,15 @@ export const GRADIENT_PRESETS = [
     }
 ];
 
-const STORAGE_KEY = 'invitor_theme_customizer_v1';
+const STORAGE_KEY = 'invitor_theme_customizer_v2';
+const EVENT_THEMES_KEY = 'invitor_event_themes_v2';
 
 export const ThemeProvider = ({ children }) => {
-    // Initial state loaded from localStorage if available
+    // Initial global theme state
     const [themeConfig, setThemeConfig] = useState(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                return JSON.parse(saved);
-            }
+            if (saved) return JSON.parse(saved);
         } catch (e) {
             console.error('Failed to parse saved theme settings:', e);
         }
@@ -207,9 +247,22 @@ export const ThemeProvider = ({ children }) => {
         };
     });
 
+    // Per-Event Customized Themes Map: { [eventId]: themeConfig }
+    const [eventThemes, setEventThemes] = useState(() => {
+        try {
+            const saved = localStorage.getItem(EVENT_THEMES_KEY);
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to parse event theme map:', e);
+        }
+        return {};
+    });
+
+    // Track if customizer is currently opened for a specific event
+    const [activeEvent, setActiveEvent] = useState(null);
     const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
 
-    // Save to localStorage on change
+    // Save global theme to localStorage
     useEffect(() => {
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(themeConfig));
@@ -217,6 +270,15 @@ export const ThemeProvider = ({ children }) => {
             console.error('Failed to save theme settings:', e);
         }
     }, [themeConfig]);
+
+    // Save eventThemes map to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem(EVENT_THEMES_KEY, JSON.stringify(eventThemes));
+        } catch (e) {
+            console.error('Failed to save event themes map:', e);
+        }
+    }, [eventThemes]);
 
     // Apply accent class or custom css variable on root
     useEffect(() => {
@@ -232,49 +294,110 @@ export const ThemeProvider = ({ children }) => {
         root.style.setProperty('--theme-accent', accentColors[themeConfig.accent] || '#6366f1');
     }, [themeConfig.accent]);
 
-    // Helper functions
-    const setVideoBackground = (url, name = 'Custom Video', accent = themeConfig.accent) => {
-        setThemeConfig(prev => ({
-            ...prev,
+    // Helper to set video background
+    const setVideoBackground = (url, name = 'Custom Video', accent = themeConfig.accent, targetEventId = null) => {
+        const newConf = {
             type: 'video',
             source: url,
             name: name,
-            accent: accent || prev.accent
-        }));
+            accent: accent || themeConfig.accent,
+            opacity: themeConfig.opacity,
+            blur: themeConfig.blur,
+            eventCategory: themeConfig.eventCategory
+        };
+
+        if (targetEventId) {
+            setEventThemes(prev => ({ ...prev, [targetEventId]: newConf }));
+        }
+        setThemeConfig(prev => ({ ...prev, ...newConf }));
     };
 
-    const setImageBackground = (url, name = 'Custom Image', accent = themeConfig.accent) => {
-        setThemeConfig(prev => ({
-            ...prev,
+    // Helper to set image background
+    const setImageBackground = (url, name = 'Custom Image', accent = themeConfig.accent, targetEventId = null) => {
+        const newConf = {
             type: 'image',
             source: url,
             name: name,
-            accent: accent || prev.accent
-        }));
+            accent: accent || themeConfig.accent,
+            opacity: themeConfig.opacity,
+            blur: themeConfig.blur,
+            eventCategory: themeConfig.eventCategory
+        };
+
+        if (targetEventId) {
+            setEventThemes(prev => ({ ...prev, [targetEventId]: newConf }));
+        }
+        setThemeConfig(prev => ({ ...prev, ...newConf }));
     };
 
-    const setGradientBackground = (gradientCss, name = 'Custom Gradient', accent = 'indigo') => {
-        setThemeConfig(prev => ({
-            ...prev,
+    // Helper to set gradient background
+    const setGradientBackground = (gradientCss, name = 'Custom Gradient', accent = 'indigo', targetEventId = null) => {
+        const newConf = {
             type: 'gradient',
             source: gradientCss,
             name: name,
-            accent: accent
-        }));
+            accent: accent,
+            opacity: themeConfig.opacity,
+            blur: themeConfig.blur
+        };
+
+        if (targetEventId) {
+            setEventThemes(prev => ({ ...prev, [targetEventId]: newConf }));
+        }
+        setThemeConfig(prev => ({ ...prev, ...newConf }));
     };
 
-    const applyEventCategoryPreset = (category) => {
+    // Apply category preset
+    const applyEventCategoryPreset = (category, targetEventId = null) => {
         const preset = EVENT_THEME_PRESETS[category] || EVENT_THEME_PRESETS.Tech;
-        setThemeConfig(prev => ({
-            ...prev,
+        const newConf = {
             type: preset.type,
             source: preset.source,
             name: preset.name,
             accent: preset.accent,
-            opacity: preset.opacity !== undefined ? preset.opacity : prev.opacity,
-            blur: preset.blur !== undefined ? preset.blur : prev.blur,
+            opacity: preset.opacity !== undefined ? preset.opacity : themeConfig.opacity,
+            blur: preset.blur !== undefined ? preset.blur : themeConfig.blur,
             eventCategory: category
-        }));
+        };
+
+        if (targetEventId) {
+            setEventThemes(prev => ({ ...prev, [targetEventId]: newConf }));
+        }
+        setThemeConfig(prev => ({ ...prev, ...newConf }));
+    };
+
+    // Intelligently apply background when viewing an Invite / Event
+    const applyInviteTheme = (invite) => {
+        if (!invite) return;
+
+        // 1. Check if user or admin saved a personalized override for this event
+        if (eventThemes[invite._id]) {
+            setThemeConfig(eventThemes[invite._id]);
+            return;
+        }
+
+        // 2. Check if the event in DB has an admin-configured video background
+        if (invite.backgroundVideo && (invite.backgroundType === 'video' || !invite.backgroundType)) {
+            setVideoBackground(invite.backgroundVideo, `${invite.title} Video`, 'cyan');
+            return;
+        }
+
+        // 3. Check if the event in DB has an admin-configured image background
+        if (invite.backgroundImage && (invite.backgroundType === 'image' || !invite.backgroundType)) {
+            setImageBackground(invite.backgroundImage, `${invite.title} Wallpaper`, 'indigo');
+            return;
+        }
+
+        // 4. Fallback to category preset
+        if (invite.category && EVENT_THEME_PRESETS[invite.category]) {
+            applyEventCategoryPreset(invite.category);
+            return;
+        }
+
+        // 5. If event has its main poster image, optionally use it or keep default
+        if (invite.imageUrl) {
+            setImageBackground(invite.imageUrl, `${invite.title} Backdrop`, 'indigo');
+        }
     };
 
     const setOverlayOpacity = (opacityVal) => {
@@ -289,8 +412,8 @@ export const ThemeProvider = ({ children }) => {
         setThemeConfig(prev => ({ ...prev, accent: accentName }));
     };
 
-    const resetToDefault = () => {
-        setThemeConfig({
+    const resetToDefault = (targetEventId = null) => {
+        const defaultConf = {
             type: 'default',
             source: '',
             name: 'Default Obsidian',
@@ -298,18 +421,30 @@ export const ThemeProvider = ({ children }) => {
             opacity: 0.70,
             blur: 0,
             eventCategory: null
-        });
+        };
+        if (targetEventId) {
+            setEventThemes(prev => {
+                const next = { ...prev };
+                delete next[targetEventId];
+                return next;
+            });
+        }
+        setThemeConfig(defaultConf);
     };
 
     return (
         <ThemeContext.Provider value={{
             themeConfig,
+            eventThemes,
+            activeEvent,
+            setActiveEvent,
             isCustomizerOpen,
             setIsCustomizerOpen,
             setVideoBackground,
             setImageBackground,
             setGradientBackground,
             applyEventCategoryPreset,
+            applyInviteTheme,
             setOverlayOpacity,
             setBlur,
             setAccentTheme,

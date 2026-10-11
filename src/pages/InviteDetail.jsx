@@ -2,6 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
 import { AuthContext } from '../context/AuthContext';
+import { ThemeContext } from '../context/ThemeContext';
 import { 
     FaCalendarAlt, 
     FaMapMarkerAlt, 
@@ -15,17 +16,42 @@ import {
     FaCheckCircle,
     FaSpinner,
     FaTimesCircle,
-    FaCopy
+    FaCopy,
+    FaPalette
 } from 'react-icons/fa';
 
 
 const InviteDetail = () => {
     const { id } = useParams();
     const { user } = useContext(AuthContext);
+    const { applyInviteTheme, setActiveEvent, setIsCustomizerOpen } = useContext(ThemeContext);
     const navigate = useNavigate();
     
     const [invite, setInvite] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Admin Payment Settings for manual UPI
+    const [adminPaymentSettings, setAdminPaymentSettings] = useState({
+        upiId: 'invitor.official@okaxis',
+        merchantName: 'INVITOR Events Official',
+        qrCodeUrl: ''
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+        api.get('/bookings/payment-settings')
+            .then(({ data }) => {
+                if (isMounted && data) {
+                    setAdminPaymentSettings({
+                        upiId: data.upiId || 'invitor.official@okaxis',
+                        merchantName: data.merchantName || 'INVITOR Events Official',
+                        qrCodeUrl: data.qrCodeUrl || ''
+                    });
+                }
+            })
+            .catch(() => {});
+        return () => { isMounted = false; };
+    }, []);
     
     // Booking / Modal States
     const [showModal, setShowModal] = useState(false);
@@ -70,6 +96,7 @@ const InviteDetail = () => {
             try {
                 const { data } = await api.get(`/invites/${id}`);
                 setInvite(data);
+                applyInviteTheme(data);
             } catch (error) {
                 console.error("Error fetching invitation page data:", error);
             } finally {
@@ -220,22 +247,74 @@ const InviteDetail = () => {
         try {
             let paymentMethod = selectedPaymentMethod;
             let reference = `PAY_${Date.now()}`;
+            let cardDetailsToSend = null;
+
             if (selectedPaymentMethod === 'card') {
                 paymentMethod = 'stripe';
+
+                // Strict validation before authorizing
+                const cleanCard = (cardNumber || '').replace(/\s+/g, '');
+                if (!cleanCard || cleanCard.length < 15 || cleanCard.length > 16 || !/^\d+$/.test(cleanCard)) {
+                    setBookingError('Please enter a valid 16-digit card number (or click Auto-fill Stripe Test Card).');
+                    setPaymentProcessing(false);
+                    return;
+                }
+                if (!cardName || cardName.trim().length < 2) {
+                    setBookingError('Please enter the cardholder name.');
+                    setPaymentProcessing(false);
+                    return;
+                }
+                if (!cardExpiry || !cardExpiry.includes('/') || cardExpiry.length < 5) {
+                    setBookingError('Please enter a valid card expiry date (MM/YY).');
+                    setPaymentProcessing(false);
+                    return;
+                }
+                const [expMonth, expYear] = cardExpiry.split('/').map(v => parseInt(v.trim(), 10));
+                if (isNaN(expMonth) || expMonth < 1 || expMonth > 12) {
+                    setBookingError('Invalid expiration month (01-12).');
+                    setPaymentProcessing(false);
+                    return;
+                }
+                const now = new Date();
+                const curYear = now.getFullYear() % 100;
+                const curMonth = now.getMonth() + 1;
+                const fullExpYear = expYear < 100 ? expYear : expYear % 100;
+                if (fullExpYear < curYear || (fullExpYear === curYear && expMonth < curMonth)) {
+                    setBookingError('This card has expired. Please provide a card with a future expiry date.');
+                    setPaymentProcessing(false);
+                    return;
+                }
+                if (!cardCvv || cardCvv.length < 3 || !/^\d+$/.test(cardCvv)) {
+                    setBookingError('Please enter a valid 3 or 4-digit CVV.');
+                    setPaymentProcessing(false);
+                    return;
+                }
+
                 reference = `stripe_ch_${Math.random().toString(36).substring(2, 9)}`;
+                cardDetailsToSend = {
+                    cardNumber: cleanCard,
+                    cardName: cardName.trim(),
+                    cardExpiry,
+                    cardCvv
+                };
             } else if (selectedPaymentMethod === 'upi') {
                 paymentMethod = 'upi_qr';
                 reference = upiUtr ? `UTR_${upiUtr}` : `UPI_${Date.now()}`;
             }
 
-            if (currentBookingId) {
-                await api.post(`/bookings/${currentBookingId}/pay`, {
-                    bookingId: currentBookingId,
-                    paymentMethod,
-                    paymentReference: reference,
-                    upiId: userUpiId || 'invitor.official@okaxis'
-                });
+            if (!currentBookingId) {
+                setBookingError('Booking record not found. Please try booking again.');
+                setPaymentProcessing(false);
+                return;
             }
+
+            await api.post(`/bookings/${currentBookingId}/pay`, {
+                bookingId: currentBookingId,
+                paymentMethod,
+                paymentReference: reference,
+                upiId: userUpiId || adminPaymentSettings.upiId || 'invitor.official@okaxis',
+                cardDetails: cardDetailsToSend
+            });
 
             setPaymentProcessing(false);
             setBookingStep('success');
@@ -245,7 +324,7 @@ const InviteDetail = () => {
             }, 3000);
         } catch (error) {
             setPaymentProcessing(false);
-            setBookingError(error.response?.data?.error || error.response?.data?.message || 'Payment processing failed. Please try again.');
+            setBookingError(error.response?.data?.error || error.response?.data?.message || 'Payment processing failed. Please check payment details.');
         }
     };
 
@@ -317,6 +396,17 @@ const InviteDetail = () => {
                             </span>
                             <h1 className="text-3xl md:text-5xl font-black text-white leading-tight font-display">{invite.title}</h1>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveEvent(invite);
+                                setIsCustomizerOpen(true);
+                            }}
+                            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-indigo-300 hover:text-white border border-indigo-500/30 hover:border-indigo-500 text-xs font-bold transition shadow-xl backdrop-blur-md cursor-pointer"
+                        >
+                            <FaPalette className="text-indigo-400" />
+                            <span>Customize Event Background</span>
+                        </button>
                     </div>
                 </div>
 
@@ -612,28 +702,28 @@ const InviteDetail = () => {
 
                                 {/* PAYMENT DETAILS AREA */}
                                 <div className="bg-slate-950/50 border border-slate-800/60 p-5 rounded-2xl">
-                                    {/* 1. UPI QR Code Method */}
+                                    {/* 1. UPI QR Code Method (Configured by Admin) */}
                                     {selectedPaymentMethod === 'upi' && (
                                         <div className="flex flex-col items-center py-4 relative overflow-hidden space-y-3">
                                             <div className="p-3 bg-white rounded-xl shadow-lg border border-indigo-500/20 relative">
                                                 <img 
-                                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=invitor.official@okaxis&pn=INVITOR%20Events&am=${bookingAmount ?? quote?.total ?? invite.ticketPrice}&tr=${currentBookingId || 'BKG'}&cu=${quote?.currency || 'INR'}`)}`}
+                                                    src={adminPaymentSettings.qrCodeUrl || `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=${encodeURIComponent(adminPaymentSettings.upiId || 'invitor.official@okaxis')}&pn=${encodeURIComponent(adminPaymentSettings.merchantName || 'INVITOR Events')}&am=${bookingAmount ?? quote?.total ?? invite.ticketPrice}&tr=${currentBookingId || 'BKG'}&cu=${quote?.currency || 'INR'}`)}`}
                                                     alt="Live UPI QR Code" 
                                                     className="w-36 h-36 object-contain"
                                                 />
                                             </div>
 
                                             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs font-mono text-cyan-400">
-                                                <span>invitor.official@okaxis</span>
+                                                <span>{adminPaymentSettings.upiId || 'invitor.official@okaxis'}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        navigator.clipboard.writeText('invitor.official@okaxis');
+                                                        navigator.clipboard.writeText(adminPaymentSettings.upiId || 'invitor.official@okaxis');
                                                         setCopied(true);
                                                         setTimeout(() => setCopied(false), 2000);
                                                     }}
-                                                    className="text-indigo-400 hover:text-white p-1 rounded"
-                                                    title="Copy UPI ID"
+                                                    className="text-indigo-400 hover:text-white p-1 rounded cursor-pointer"
+                                                    title="Copy Admin UPI ID"
                                                 >
                                                     <FaCopy size={12} />
                                                 </button>

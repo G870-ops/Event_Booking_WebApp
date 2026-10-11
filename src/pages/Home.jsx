@@ -80,6 +80,29 @@ const Home = () => {
     const [isCardFlipped, setIsCardFlipped] = useState(false);
     const [terminalLogs, setTerminalLogs] = useState([]);
 
+    // Admin Payment Settings for UPI
+    const [adminPaymentSettings, setAdminPaymentSettings] = useState({
+        upiId: 'invitor.official@okaxis',
+        merchantName: 'INVITOR Events Official',
+        qrCodeUrl: ''
+    });
+
+    useEffect(() => {
+        let isMounted = true;
+        api.get('/bookings/payment-settings')
+            .then(({ data }) => {
+                if (isMounted && data) {
+                    setAdminPaymentSettings({
+                        upiId: data.upiId || 'invitor.official@okaxis',
+                        merchantName: data.merchantName || 'INVITOR Events Official',
+                        qrCodeUrl: data.qrCodeUrl || ''
+                    });
+                }
+            })
+            .catch(() => {});
+        return () => { isMounted = false; };
+    }, []);
+
     // AI Matchmaker states
     const [showAIChat, setShowAIChat] = useState(false);
     const [chatMessages, setChatMessages] = useState([
